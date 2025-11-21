@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/rbtree
+rbtree.so
+rbtree.dylib
+rbtree.dll
+rbtree.a
+rbtree.lib
+rbtree-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst

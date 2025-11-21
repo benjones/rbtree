@@ -1,0 +1,10 @@
+{
+	"authors": [
+		"Ben Jones"
+	],
+	"copyright": "Copyright © 2025, Ben Jones",
+	"description": "red black tree",
+	"license": "BSL-1.0",
+    "name": "rbtree",
+    "dflags" : ["--checkaction=context"]
+}

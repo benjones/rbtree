@@ -64,6 +64,8 @@ class RBTree(T) {
             }
             scope(exit){ write("finished recursive remove ", val, " from subtree rooted at ");
                 writeln(n.data);
+                writeln("subtree: ");
+                printInOrder(n);
             }
             if(n is null){ return RemoveResult(null, false); }
             if(n.data == val){
@@ -122,17 +124,23 @@ class RBTree(T) {
     //Note, even if we can detect a problem here, we might not fix it if
     //the parent of n.newRoot needs to be changed to fix it
     private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
-        writeln("fixDelete of ", n.newRoot.data, " bh changed? ", n.bhChanged);
-        assert((n.bhChanged && !n.newRoot.red) || //if bh changed, newRoot must be black
+        writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
+                " bh changed? ", n.bhChanged, " left changed ", leftChanged);
+        //if bh changed, the changedSide subtree must have a black root
+        auto changedChild = leftChanged ? n.newRoot.left : n.newRoot.right;
+        assert((n.bhChanged && (changedChild is null || !changedChild.red)) ||
                !n.bhChanged); //if BH didn't change, could be either color
 
         if(!n.bhChanged){
+            writeln("bh unchanged");
             //only violaion can be Red/Red issue, which the fixInsert
             //code already handles
             return RemoveResult(fixInsert(n.newRoot), false);
         } else { //bh of left or right child has decreased by 1
+            writeln("bh changed");
             if(n.newRoot.red){
                 //easy fix!
+                writeln("newroot was red: ", n.newRoot.data);
                 n.newRoot.red = false;
                 //the unchanged child must have been black before
                 //push the red there.  That might cause a red-red case
@@ -439,6 +447,24 @@ unittest {
         tree.add(x);
     }
     foreach(x; iota(10)){
+        tree.printInOrder();
+        writeln("removing ", x);
+        assert(tree.remove(x));
+        assert(!tree.contains(x));
+        tree.rbCheck();
+    }
+
+}
+
+//delete, but delete stuff in backwards order
+unittest {
+    import std.range : iota;
+    writeln("\n\n\n\n\nremove tests part 2");
+    scope tree = new RBTree!int();
+    foreach(x; iota(10)){
+        tree.add(x);
+    }
+    foreach_reverse(x; iota(10)){
         tree.printInOrder();
         writeln("removing ", x);
         assert(tree.remove(x));

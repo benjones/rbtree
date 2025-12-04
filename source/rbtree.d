@@ -62,34 +62,49 @@ class RBTree(T) {
                 write("recursive remove ", val, " from subtree rooted at ");
                 writeln(n.data);
             }
-
+            scope(exit){ write("finished recursive remove ", val, " from subtree rooted at ");
+                writeln(n.data);
+            }
             if(n is null){ return RemoveResult(null, false); }
             if(n.data == val){
                 if(n.left == null){
-                    //TODO FIX RB properties
                     _size--;
-                    return fixDelete(RemoveResult(n.right, !n.red)); //leaf or 1 child scenario
+                    //if we caused a problem by removing a black node, we can't
+                    //fix it here unless we can just recolor a red child
+                    //hooray, no more issues!
+                    if(!n.red && n.right !is null && n.right.red){
+                        n.right.red = false;
+                        return RemoveResult(n.right, false);
+                    }
+                    //otherwise fix problems up the tree if we have to (no problem if n was red)
+                    return RemoveResult(n.right, !n.red);
                 }
                 if(n.right == null){
                     _size--;
-                    return fixDelete(RemoveResult(n.left, !n.red)); //1 child
+                    assert(n.left);
+                    if(!n.red && n.left.red){
+                        n.left.red = false;
+                        return RemoveResult(n.left, false);
+                    }
+                    //again, if we deleted a black node, we can't fix the issue here
+                    return RemoveResult(n.left, !n.red); //1 child
                 } else {
                     auto pred = n.left;
                     while(pred.right !is null){ pred = pred.right; }
                     n.data = pred.data;
                     auto leftResult = remove(n.left, pred.data);
                     n.left = leftResult.newRoot;
-                    return fixDelete(RemoveResult(n, leftResult.bhChanged));
+                    return fixDelete!true(RemoveResult(n, leftResult.bhChanged));
                 }
             }
             if(val < n.data){
                 auto result = remove(n.left, val);
                 n.left = result.newRoot;
-                return fixDelete(RemoveResult(n, result.bhChanged));
+                return fixDelete!true(RemoveResult(n, result.bhChanged));
             } else {
                 auto result = remove(n.right, val);
                 n.right = result.newRoot;
-                return fixDelete(RemoveResult(n, result.bhChanged));
+                return fixDelete!false(RemoveResult(n, result.bhChanged));
             }
         }
         const oldSize = _size;
@@ -106,14 +121,89 @@ class RBTree(T) {
     //at some point caused 2 red nodes to be adjacent
     //Note, even if we can detect a problem here, we might not fix it if
     //the parent of n.newRoot needs to be changed to fix it
-    private RemoveResult fixDelete(RemoveResult n){
-        writeln("fixDelete of ", n.newRoot, " bh changed? ", n.bhChanged);
+    private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
+        writeln("fixDelete of ", n.newRoot.data, " bh changed? ", n.bhChanged);
+        assert((n.bhChanged && !n.newRoot.red) || //if bh changed, newRoot must be black
+               !n.bhChanged); //if BH didn't change, could be either color
+
         if(!n.bhChanged){
             //only violaion can be Red/Red issue, which the fixInsert
             //code already handles
             return RemoveResult(fixInsert(n.newRoot), false);
-        } else {
-            assert(false, "bhChanged not implemented yet");
+        } else { //bh of left or right child has decreased by 1
+            if(n.newRoot.red){
+                //easy fix!
+                n.newRoot.red = false;
+                //the unchanged child must have been black before
+                //push the red there.  That might cause a red-red case
+                //so call insert fix to fix it
+                static if(leftChanged){
+                    assert(n.newRoot.right && !n.newRoot.right.red);
+                    n.newRoot.right.red = true;
+                } else {
+                    assert(n.newRoot.left && !n.newRoot.left.red);
+                    n.newRoot.left.red = true;
+                }
+                return RemoveResult(fixInsert(n.newRoot), false);
+
+            } else { //n.newroot is black
+                static if(leftChanged){
+                    auto oppChild = n.newRoot.right;
+                    auto modChild = n.newRoot.left;
+                } else {
+                    auto oppChild = n.newRoot.left;
+                    auto modChild = n.newRoot.right;
+                }
+
+                //if BH had changed, and we had a red root, we would have made
+                //the root black to fix it
+                assert(modChild is null || !modChild.red);
+
+                if(oppChild.red){
+                    // rotate the opposite child up, since
+                    // the changedSide is too short.  This moves newRoot which was black
+                    // to that side
+                    static if(leftChanged){
+                        auto midGC = oppChild.left;
+                        oppChild.left = n.newRoot;
+                        n.newRoot.right = midGC;
+                    } else {
+                        auto midGC = oppChild.right;
+                        oppChild.right = n.newRoot;
+                        n.newRoot.left = midGC;
+                    }
+                    //now the oppChild is the new root, and is red, but midGC makes our
+                    //side too tall... so fix it
+
+                    assert(!midGC.red); //it's parent was red, so it can't be
+                    midGC.red = true;
+
+                    //might have caused red/red at midGC + its child
+                    //fix it at n.newRoot which is its parent
+                    // fixInsert will work even if both of midGC's children were red
+                    auto fixed = fixInsert(n.newRoot);
+
+                    static if(leftChanged){
+                        oppChild.left = fixed;
+                    } else {
+                        oppChild.right = fixed;
+                    }
+
+                    //oppChild is the new root.  It WAS red, if we make it black the tree height
+                    //will be what it was before.  Fix a potential red/red problem, and return all good
+                    oppChild.red = false;
+                    return RemoveResult(fixInsert(oppChild), false);
+
+                } else { //opChild is black
+                    //if the opposite subtree root was black:
+                    //   make it red to even the subtrees, then use fixInsert
+                    //   to fix up a potential red-red situation there.  now this tree
+                    //   is OK, but has reduced BH
+
+                    oppChild.red = true;
+                    return RemoveResult(fixInsert(n.newRoot), true);
+                }
+            }
 
         }
     }
@@ -126,7 +216,8 @@ class RBTree(T) {
       so the black heights would differ
 
       I think we have to fix stuff at a grandparent node by looking for child/grandchild which are both red
-      if n is red when we reach it, unless it's the root, that can't be possible, assuming we fixed stuff below already
+      if n is red when we reach it, unless it's the root, that can't be possible, assuming we fixed stuff
+      below already
 
 
      */
@@ -351,6 +442,7 @@ unittest {
         tree.printInOrder();
         writeln("removing ", x);
         assert(tree.remove(x));
+        assert(!tree.contains(x));
         tree.rbCheck();
     }
 

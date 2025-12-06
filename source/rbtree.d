@@ -58,7 +58,7 @@ class RBTree(T) {
     bool remove(T val){
         //remove val from subtree rooted at n and return its new root
         RemoveResult remove(Node* n, T val){
-            if(n !is null){
+            /*if(n !is null){
                 write("recursive remove ", val, " from subtree rooted at ");
                 writeln(n.data);
             }
@@ -66,7 +66,7 @@ class RBTree(T) {
                 writeln(n.data);
                 writeln("subtree: ");
                 printInOrder(n);
-            }
+                }*/
             if(n is null){ return RemoveResult(null, false); }
             if(n.data == val){
                 if(n.left == null){
@@ -124,23 +124,23 @@ class RBTree(T) {
     //Note, even if we can detect a problem here, we might not fix it if
     //the parent of n.newRoot needs to be changed to fix it
     private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
-        writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
+        /*writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
                 " bh changed? ", n.bhChanged, " left changed ", leftChanged);
+        scope(exit){
+            writeln("finished fixDelete at ", n.newRoot.data);
+            }*/
         //if bh changed, the changedSide subtree must have a black root
         auto changedChild = leftChanged ? n.newRoot.left : n.newRoot.right;
         assert((n.bhChanged && (changedChild is null || !changedChild.red)) ||
                !n.bhChanged); //if BH didn't change, could be either color
 
         if(!n.bhChanged){
-            writeln("bh unchanged");
             //only violaion can be Red/Red issue, which the fixInsert
             //code already handles
             return RemoveResult(fixInsert(n.newRoot), false);
         } else { //bh of left or right child has decreased by 1
-            writeln("bh changed");
             if(n.newRoot.red){
                 //easy fix!
-                writeln("newroot was red: ", n.newRoot.data);
                 n.newRoot.red = false;
                 //the unchanged child must have been black before
                 //push the red there.  That might cause a red-red case
@@ -209,7 +209,15 @@ class RBTree(T) {
                     //   is OK, but has reduced BH
 
                     oppChild.red = true;
-                    return RemoveResult(fixInsert(n.newRoot), true);
+                    auto fixed = fixInsert(n.newRoot);
+                    if(fixed.red){
+                        fixed.red = false;
+                        //black height resolved itself... nice!
+                        return RemoveResult(fixed, false);
+                    } else {
+                        //still gotta fix the black height
+                        return RemoveResult(fixed, true);
+                    }
                 }
             }
 
@@ -230,13 +238,20 @@ class RBTree(T) {
 
      */
     private Node* fixInsert(Node* n){
-
+        /*writeln("fixing insert at ", n.data, " tree: ");
+        printInOrder(n);
+        scope(exit){
+            writeln("finished fixing insert at ", n.data);
+            }*/
         if(n.left !is null && n.left.red){
             auto l = n.left;
             if(l.left !is null && l.left.red){
                 //zig zig
                 assert(n is root || !n.red);
-                assert(l.right is null || !l.right.red); //other child must be black
+
+                //assert(l.right is null || !l.right.red); //other child must be black
+                //NOT IF WE'RE DELETING!
+
                 //rotate l, and move n to be its right child
                 //n must have been black
                 //pull n.left up, make it red, then make
@@ -274,7 +289,9 @@ class RBTree(T) {
                 //zag zag
 
                 assert(n is root || !n.red);
-                assert(r.left is null || ~r.left.red); //other child must be black
+
+                //assert(r.left is null || !r.left.red); //other child must be black
+                //NOT IF WE'RE DELETING!
 
                 auto newRoot = r;
                 n.right = r.left;
@@ -333,11 +350,11 @@ class RBTree(T) {
 
     private int blackHeight(Node* n){
         if(n is null){ return 0; }
-        writeln("bh: ", n.data);
+        //writeln("bh: ", n.data);
 
         auto lh = blackHeight(n.left);
         auto rh = blackHeight(n.right);
-        writeln("lh: ", lh, " rh: ", rh);
+        //writeln("lh: ", lh, " rh: ", rh);
         assert(lh == rh);
         return lh + (n.red ? 0 : 1);
 
@@ -376,12 +393,12 @@ class RBTree(T) {
 }
 
 
-void dunittest() {
+unittest {
 
     {
         scope tree = new RBTree!int();
         foreach_reverse(i; 0..5){
-            writeln("about to insert", i, "before: \n");
+            //writeln("about to insert", i, "before: \n");
             assert(tree.add(i));
             tree.rbCheck();
             assert(tree.contains(i));
@@ -391,7 +408,7 @@ void dunittest() {
     {
         scope tree = new RBTree!int();
         foreach(x; [10, 5, 7, 8, 9]){
-            writeln("about to insert", x, "before: \n");
+            //writeln("about to insert", x, "before: \n");
             assert(tree.add(x));
             tree.rbCheck();
             assert(tree.contains(x));
@@ -402,7 +419,7 @@ void dunittest() {
     {
         scope tree = new RBTree!int();
         foreach(x; [10, 16, 13, 19, 17]){
-            writeln("about to insert", x, "before: \n");
+            //writeln("about to insert", x, "before: \n");
             assert(tree.add(x));
             tree.rbCheck();
             assert(tree.contains(x));
@@ -413,7 +430,7 @@ void dunittest() {
     {
         scope tree = new RBTree!int();
         foreach(x; [10, 15, 20, 25, 30]){
-            writeln("about to insert", x, "before: \n");
+            //writeln("about to insert", x, "before: \n");
             assert(tree.add(x));
             tree.rbCheck();
             assert(tree.contains(x));
@@ -424,15 +441,37 @@ void dunittest() {
     {
         import std.range: iota;
         import std.algorithm.iteration: permutations;
-        writeln("checking all permutations of iota(10)");
-        //TODO BUMP UP TO 10!
-        foreach(perm; iota(5).permutations){
+        import std.random : randomShuffle, Random;
+        import std.array;
+        import std.parallelism: parallel;
+
+        //got it to pass with limit = 11 in ~1 minute
+        const limit = 10;        //TODO BUMP UP TO 10!
+        auto rnd = Random(42);
+
+        writeln("checking all permutations of iota(", limit,")");
+
+
+        auto removeOrder = iota(limit).array;
+        foreach(perm; iota(limit).permutations){
+
+            //writeln("perm: ", perm);
             scope tree = new RBTree!int();
             foreach(x; perm){
                 assert(tree.add(x));
                 tree.rbCheck();
                 assert(tree.contains(x));
             }
+            //remove them in a random order
+            //tree.printInOrder;
+            removeOrder.randomShuffle(rnd);
+            //writeln("remove order: ", removeOrder);
+            foreach(x; removeOrder){
+                //writeln("about to remove ", x);
+                assert(tree.remove(x));
+                tree.rbCheck();
+            }
+            assert(tree.size == 0);
         }
     }
 
@@ -447,8 +486,8 @@ unittest {
         tree.add(x);
     }
     foreach(x; iota(10)){
-        tree.printInOrder();
-        writeln("removing ", x);
+        // tree.printInOrder();
+        //writeln("removing ", x);
         assert(tree.remove(x));
         assert(!tree.contains(x));
         tree.rbCheck();
@@ -459,17 +498,45 @@ unittest {
 //delete, but delete stuff in backwards order
 unittest {
     import std.range : iota;
-    writeln("\n\n\n\n\nremove tests part 2");
+    writeln("remove tests part 2");
     scope tree = new RBTree!int();
     foreach(x; iota(10)){
         tree.add(x);
     }
     foreach_reverse(x; iota(10)){
-        tree.printInOrder();
-        writeln("removing ", x);
+        //        tree.printInOrder();
+        //        writeln("removing ", x);
         assert(tree.remove(x));
         assert(!tree.contains(x));
         tree.rbCheck();
     }
 
+}
+
+private void fillAndClear(int[] insert, int[] remove){
+    import std.stdio;
+    scope tree = new RBTree!int;
+    foreach(x; insert){
+        assert(tree.add(x));
+        tree.rbCheck();
+    }
+    //tree.printInOrder();
+    foreach(x; remove){
+        //writeln("removing ", x);
+        assert(tree.remove(x));
+        tree.rbCheck();
+        //if(tree.size > 0){
+        //  tree.printInOrder();
+        //}
+    }
+
+}
+
+unittest {
+    fillAndClear( [4,3,1,0,2,5,6],  [4,5,6,0,3,2,1]);
+}
+
+unittest {
+    fillAndClear([1, 0, 2, 3, 4, 5, 6, 7],
+        [4, 0, 7, 3, 1, 2, 5, 6]);
 }

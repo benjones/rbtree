@@ -14,3 +14,4 @@ rbtree-test-*
 *.o
 *.obj
 *.lst
+*~

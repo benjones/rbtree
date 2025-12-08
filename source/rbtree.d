@@ -338,6 +338,22 @@ class RBTree(T) {
 
     auto size() const { return _size; }
 
+
+
+    //range implementation
+
+    private struct Range{
+
+
+
+        this(Node* root){
+
+        }
+    }
+
+
+
+
     private void rbCheck(){
         if(root is null){
             assert(size == 0);
@@ -446,7 +462,7 @@ unittest {
         import std.parallelism: parallel;
 
         //got it to pass with limit = 11 in ~1 minute
-        const limit = 10;        //TODO BUMP UP TO 10!
+        const limit = 5;        //TODO BUMP UP TO 10!
         auto rnd = Random(42);
 
         writeln("checking all permutations of iota(", limit,")");
@@ -532,6 +548,7 @@ private void fillAndClear(int[] insert, int[] remove){
 
 }
 
+//specific permutations that caused problems at some point or another
 unittest {
     fillAndClear( [4,3,1,0,2,5,6],  [4,5,6,0,3,2,1]);
 }

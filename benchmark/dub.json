@@ -1,0 +1,9 @@
+{
+
+    "name": "benchmark",
+    "description" : "benchmark for rbtree performance vs phobos",
+    "type" : "executable",
+    "dependencies" : {
+        "rbtree" : "*"
+    }
+}

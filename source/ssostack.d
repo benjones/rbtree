@@ -9,7 +9,18 @@ struct SSOStack(T, size_t capacity = 16) {
     T[] data; //interior slice/pointer potentially, danger zone!
 
  public:
-    @disable this(this);
+
+    this(const ref SSOStack other){
+        pragma(msg, "typeof this", typeof(this));
+        pragma(msg, "typeof other", typeof(other));
+        if(data.length > capacity){
+            data = other.data.dup;
+        } else {
+            backing[] = other.backing[];
+            data = backing[0..other.data.length];
+        }
+    }
+
     @disable this(SSOStack);
 
     void push(T t){
@@ -35,11 +46,11 @@ struct SSOStack(T, size_t capacity = 16) {
         return ret;
     }
 
-    T peek() const { return data[$-1]; }
+    T peek() { return data[$-1]; }
 
-    size_t size() const {
-        return data.length;
-    }
+    size_t size() const { return data.length; }
+
+    bool empty() const { return size == 0; }
 
 }
 
@@ -64,9 +75,15 @@ unittest {
 unittest {
     alias S4 = SSOStack!(int, 4);
     S4 s;
-    static assert(!__traits(compiles, {auto t = s;}));
+    s.push(1);
+    S4 s2 = s;
+    assert(s.size == 1);
+    assert(s2.size == 1);
 
-    static void f1(S4 byVal){}
+    assert(s.pop == 1);
+    assert(s2.peek == 1);
+    assert(s2.pop == 1);
+    assert(s.empty);
+    assert(s2.empty);
 
-    static assert(!__traits(compiles, {f1(s);}));
 }

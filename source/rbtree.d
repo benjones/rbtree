@@ -339,15 +339,71 @@ class RBTree(T) {
     auto size() const { return _size; }
 
 
+    Range opSlice(){
+        return Range(root);
+    }
 
     //range implementation
 
     private struct Range{
+        import ssostack;
+        //"node stack"
+        alias NS = SSOStack!(const(Node)*);
+        NS stack;
 
+        @disable this();
 
+        this(const ref Range other){
+            stack = other.stack;
+        }
 
         this(Node* root){
+            Node* curr = root;
+            while(curr !is null){
+                stack.push(curr);
+                curr = curr.left;
+            }
+            //writeln("stack after constructor");
+            //writeln(stack);
+            //writeln("top: ", stack.peek.data);
+        }
 
+        T front(){
+            //writeln("front: ", stack.peek.data);
+            return stack.peek.data;
+        }
+
+        bool empty(){
+            return stack.empty;
+        }
+
+        void popFront(){
+            //writeln("popFront, statck top: ", stack.peek.data);
+            //writeln(stack);
+            auto prev = stack.peek();
+            //must be in the middle of the in-order traversal
+            if(prev.right !is null){
+                //writeln("traverse right");
+                //trace down to the left
+                const(Node)* curr = prev.right;
+                while(curr !is null){
+                    stack.push(curr);
+                    curr = curr.left;
+                }
+            } else {
+                while(!stack.empty){
+                    //writeln("moving up from ", stack.peek.data);
+                    prev = stack.pop();
+                    if(stack.empty){ return; }//prev was the root, so we're done
+                    if(prev == stack.peek.right){
+                        continue; //
+                    } else {
+                        assert(prev == stack.peek.left);
+                        //prev was left child, new top is the next
+                        return; //done
+                    }
+                }
+            }
         }
     }
 
@@ -531,11 +587,22 @@ unittest {
 
 private void fillAndClear(int[] insert, int[] remove){
     import std.stdio;
+    import std.array;
+    import std.algorithm: sort, equal;
+    import std.range: iota;
+
     scope tree = new RBTree!int;
     foreach(x; insert){
         assert(tree.add(x));
         tree.rbCheck();
+        //this assumes insert is a permutation of 0..N
+        //tree.printInOrder();
     }
+
+    auto asArray = tree[].array;
+    sort(asArray);
+    assert(equal(iota(insert.length), asArray));
+
     //tree.printInOrder();
     foreach(x; remove){
         //writeln("removing ", x);

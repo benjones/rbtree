@@ -50,6 +50,12 @@ struct SSOStack(T, size_t capacity = 16) {
 
     bool empty() const { return size == 0; }
 
+    static void writeAsString(alias Mapper)(const ref SSOStack stack) {
+        import std.algorithm.iteration: joiner, map;
+        import std.stdio;
+
+        writeln("Stack[ ", stack.data.map!(x => Mapper(x)).joiner(", "), "]");
+    }
 }
 
 

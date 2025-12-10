@@ -3,6 +3,7 @@ module rbt.rbtree;
 
 import std.stdio;
 import std.typecons : Tuple, tuple;
+import std.conv : to;
 
 /**
 Self balancing BST
@@ -50,6 +51,10 @@ class RBTree(T) {
         }
         //n is null
         _size++;
+        writeln("stack before writing hooking in new node");
+
+        NS.writeAsString!(function(x) => to!string(x.data))(stack);
+
         auto newNode = new Node(null, null, val);
         while(!stack.empty){
 
@@ -272,11 +277,11 @@ class RBTree(T) {
 
      */
     private Node* fixInsert(Node* n){
-        /*writeln("fixing insert at ", n.data, " tree: ");
+        writeln("fixing insert at ", n.data, " tree: ");
         printInOrder(n);
         scope(exit){
             writeln("finished fixing insert at ", n.data);
-            }*/
+        }
         if(n.left !is null && n.left.red){
             auto l = n.left;
             if(l.left !is null && l.left.red){
@@ -482,7 +487,10 @@ class RBTree(T) {
     public void printInOrder(){
 
         import std.conv: to;
-
+        if(root is null){
+            writeln("empty tree");
+            return;
+        }
         writeln("tree root is: ", root.data);
         writeln("root.left: ", root.left ? to!string(root.left.data) : "null",
                 " root.right: ", root.right ? to!string(root.right.data) : "null");
@@ -497,7 +505,8 @@ unittest {
     {
         scope tree = new RBTree!int();
         foreach_reverse(i; 0..5){
-            //writeln("about to insert", i, "before: \n");
+            writeln("about to insert", i, " before: \n");
+            tree.printInOrder();
             assert(tree.insert(i));
             tree.rbCheck();
             assert(tree.contains(i));

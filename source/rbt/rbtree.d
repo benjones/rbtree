@@ -18,6 +18,12 @@ black height of all children must be equal (# of black nodes from subtree root t
  **/
 class RBTree(T) {
 
+
+    import rbt.ssostack;
+    //"node stack"
+    private alias NS = SSOStack!(Node*);
+
+
     private {
         struct Node {
             Node* left;
@@ -32,6 +38,33 @@ class RBTree(T) {
 
     bool insert(T val){
 
+        NS stack;
+
+        Node* n = root;
+        while(n != null){
+            if(val == n.data){
+                return false;
+            }
+            stack.push(n);
+            n = (val < n.data) ? n.left : n.right;
+        }
+        //n is null
+        _size++;
+        auto newNode = new Node(null, null, val);
+        while(!stack.empty){
+
+            if(newNode.data < stack.peek.data){
+                stack.peek.left = fixInsert(newNode);
+            } else {
+                stack.peek.right = fixInsert(newNode);
+            }
+            newNode = stack.pop;
+        }
+        root = newNode;
+        root.red = false;
+        return true;
+
+        /*
         Node* insert(Node* n){
             if(n is null){
                 _size++;
@@ -48,6 +81,7 @@ class RBTree(T) {
         root = insert(root);
         root.red = false; //make the root black.  This can't break anything
         return _size != oldSize;
+        */
     }
 
 
@@ -301,7 +335,6 @@ class RBTree(T) {
                 newRoot.right.red = false; //grandchild was red, must be black now
                 return newRoot;
 
-
             } else if(r.left !is null && r.left.red){
                 //zag zig
                 auto newRoot = r.left;
@@ -316,11 +349,7 @@ class RBTree(T) {
                 n.red = false; //should already have been black
 
                 return newRoot;
-
-
-
             }
-
         }
 
         return n;
@@ -340,21 +369,21 @@ class RBTree(T) {
 
 
     Range opSlice(){
+        pragma(msg, "opslice typeof(this)", typeof(this));
         return Range(root);
     }
 
     //range implementation
 
     private struct Range{
-        import rbt.ssostack;
-        //"node stack"
-        alias NS = SSOStack!(const(Node)*);
         NS stack;
 
         @disable this();
 
-        this(const ref Range other){
-            stack = other.stack;
+        this(ref Range other){
+            pragma(msg, "typepof range this ", typeof(this), " typeof other ", typeof(other));
+            pragma(msg, "typepof range this stack ", typeof(this.stack), " typeof other ", typeof(other.stack));
+            stack = NS(cast(NS)other.stack);
         }
 
         this(Node* root){
@@ -385,7 +414,7 @@ class RBTree(T) {
             if(prev.right !is null){
                 //writeln("traverse right");
                 //trace down to the left
-                const(Node)* curr = prev.right;
+                auto curr = prev.right;
                 while(curr !is null){
                     stack.push(curr);
                     curr = curr.left;
@@ -442,8 +471,6 @@ class RBTree(T) {
         checkRedRule(n.right);
 
     }
-
-
 
     private void printInOrder(Node* n){
         if(n is null) return;

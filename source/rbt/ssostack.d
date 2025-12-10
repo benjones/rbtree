@@ -10,9 +10,9 @@ struct SSOStack(T, size_t capacity = 16) {
 
  public:
 
-    this(const ref SSOStack other){
+    this(ref SSOStack other){
         if(data.length > capacity){
-            data = other.data.dup;
+            data = cast(T[])other.data.dup;
         } else {
             backing[] = other.backing[];
             data = backing[0..other.data.length];
@@ -44,7 +44,7 @@ struct SSOStack(T, size_t capacity = 16) {
         return ret;
     }
 
-    T peek() { return data[$-1]; }
+    ref T peek() { return data[$-1]; }
 
     size_t size() const { return data.length; }
 

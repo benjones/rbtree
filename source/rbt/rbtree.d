@@ -22,11 +22,12 @@ class RBTree(T) {
 
     import rbt.ssostack;
     //"node stack"
-    private alias NS = SSOStack!(Node*);
+    //SSO of 48 is enough to avoid allocation in benchmark adding 1M items
+    private alias NS = SSOStack!(Node*, 48);
 
 
     private {
-        struct Node {
+        static struct Node {
             Node* left;
             Node* right;
             T data;
@@ -38,7 +39,7 @@ class RBTree(T) {
     }
 
     bool insert(T val){
-
+        //writeln("\ninsert ", val);
         NS stack;
 
         Node* n = root;
@@ -51,25 +52,32 @@ class RBTree(T) {
         }
         //n is null
         _size++;
-        writeln("stack before writing hooking in new node");
-
-        NS.writeAsString!(function(x) => to!string(x.data))(stack);
+        //writeln("stack before writing hooking in new node");
+        //NS.writeAsString!(function(x) => to!string(x.data))(stack);
 
         auto newNode = new Node(null, null, val);
-        while(!stack.empty){
+
+        //as soon as newRoot is black, we know there can't be any red/red violations
+        //so stop there
+        while(!stack.empty && newNode.red){
 
             if(newNode.data < stack.peek.data){
-                stack.peek.left = fixInsert(newNode);
+                stack.peek.left = newNode;
             } else {
-                stack.peek.right = fixInsert(newNode);
+                stack.peek.right = newNode;
             }
-            newNode = stack.pop;
+            newNode = fixInsert(stack.pop);
         }
-        root = newNode;
-        root.red = false;
+
+        if(stack.empty){
+            //writeln("unwound to root");
+            root = newNode;
+            root.red = false;
+        }
         return true;
 
         /*
+          original recursive imlementation
         Node* insert(Node* n){
             if(n is null){
                 _size++;
@@ -277,11 +285,12 @@ class RBTree(T) {
 
      */
     private Node* fixInsert(Node* n){
-        writeln("fixing insert at ", n.data, " tree: ");
+        /*writeln("fixing insert at ", n.data, " tree: ");
         printInOrder(n);
         scope(exit){
             writeln("finished fixing insert at ", n.data);
         }
+        */
         if(n.left !is null && n.left.red){
             auto l = n.left;
             if(l.left !is null && l.left.red){
@@ -374,7 +383,6 @@ class RBTree(T) {
 
 
     Range opSlice(){
-        pragma(msg, "opslice typeof(this)", typeof(this));
         return Range(root);
     }
 
@@ -386,8 +394,6 @@ class RBTree(T) {
         @disable this();
 
         this(ref Range other){
-            pragma(msg, "typepof range this ", typeof(this), " typeof other ", typeof(other));
-            pragma(msg, "typepof range this stack ", typeof(this.stack), " typeof other ", typeof(other.stack));
             stack = NS(cast(NS)other.stack);
         }
 
@@ -444,7 +450,7 @@ class RBTree(T) {
 
 
 
-    private void rbCheck(){
+    public void rbCheck(){
         if(root is null){
             assert(size == 0);
             return;
@@ -505,8 +511,8 @@ unittest {
     {
         scope tree = new RBTree!int();
         foreach_reverse(i; 0..5){
-            writeln("about to insert", i, " before: \n");
-            tree.printInOrder();
+            //writeln("about to insert ", i, " before: \n");
+            //tree.printInOrder();
             assert(tree.insert(i));
             tree.rbCheck();
             assert(tree.contains(i));
@@ -554,7 +560,7 @@ unittest {
         import std.parallelism: parallel;
 
         //got it to pass with limit = 11 in ~1 minute
-        const limit = 5;        //TODO BUMP UP TO 10!
+        const limit = 7;        //TODO BUMP UP TO 10!
         auto rnd = Random(42);
 
         //writeln("checking all permutations of iota(", limit,")");
@@ -569,6 +575,7 @@ unittest {
                 assert(tree.insert(x));
                 tree.rbCheck();
                 assert(tree.contains(x));
+                //tree.printInOrder;
             }
             //remove them in a random order
             //tree.printInOrder;

@@ -1,5 +1,7 @@
 module rbt.ssostack;
 
+import std.stdio;
+
 //for a RB tree, this is the height we can handle in a range
 //without heap allocating for the range/iterator
 struct SSOStack(T, size_t capacity = 16) {
@@ -22,6 +24,7 @@ struct SSOStack(T, size_t capacity = 16) {
     @disable this(SSOStack);
 
     void push(T t){
+        //writeln("push: size: ", size);
         if(!data){
             data = backing[0 .. 0];
         }
@@ -29,15 +32,19 @@ struct SSOStack(T, size_t capacity = 16) {
             data = backing[0 .. data.length + 1];
             data[$-1] = t;
         } else {
+            //writeln("push: size > cap: ", size);
             data ~= t;
+            //assert(false);
         }
     }
 
     T pop(){
+        //writeln("pop: size: ", size);
         auto ret = data[$-1];
         if(size == capacity + 1){
             //shrink from heap
             backing[0 .. capacity] = data[0 .. capacity];
+            data = backing[0 .. $];
         } else {
             data = data[0 .. $ -1];
         }

@@ -76,8 +76,9 @@ class RBTree(T) {
         }
         return true;
 
+        // original recursive implementation
         /*
-          original recursive imlementation
+
         Node* insert(Node* n){
             if(n is null){
                 _size++;
@@ -100,7 +101,10 @@ class RBTree(T) {
 
     //if returns the node, as well as saying if the BH of this subtree
     //shrunk (deleting can decrease it by 1)
-    private alias RemoveResult = Tuple!(Node*, "newRoot", bool, "bhChanged");
+    private struct RemoveResult {
+        Node* newRoot;
+        bool bhChanged;
+    }
 
     bool removeKey(T val){
         //remove val from subtree rooted at n and return its new root
@@ -560,7 +564,7 @@ unittest {
         import std.parallelism: parallel;
 
         //got it to pass with limit = 11 in ~1 minute
-        const limit = 7;        //TODO BUMP UP TO 10!
+        const limit = 9;        //TODO BUMP UP TO 10!
         auto rnd = Random(42);
 
         //writeln("checking all permutations of iota(", limit,")");

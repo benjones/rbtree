@@ -3,6 +3,7 @@ module rbt.rbtree;
 
 import std.stdio;
 import std.typecons : Tuple, tuple;
+import std.conv : to;
 
 /**
 Self balancing BST
@@ -18,8 +19,15 @@ black height of all children must be equal (# of black nodes from subtree root t
  **/
 class RBTree(T) {
 
+
+    import rbt.ssostack;
+    //"node stack"
+    //SSO of 48 is enough to avoid allocation in benchmark adding 1M items
+    private alias NS = SSOStack!(Node*, 48);
+
+
     private {
-        struct Node {
+        static struct Node {
             Node* left;
             Node* right;
             T data;
@@ -31,6 +39,45 @@ class RBTree(T) {
     }
 
     bool insert(T val){
+        //writeln("\ninsert ", val);
+        NS stack;
+
+        Node* n = root;
+        while(n != null){
+            if(val == n.data){
+                return false;
+            }
+            stack.push(n);
+            n = (val < n.data) ? n.left : n.right;
+        }
+        //n is null
+        _size++;
+        //writeln("stack before writing hooking in new node");
+        //NS.writeAsString!(function(x) => to!string(x.data))(stack);
+
+        auto newNode = new Node(null, null, val);
+
+        //as soon as newRoot is black, we know there can't be any red/red violations
+        //so stop there
+        while(!stack.empty && newNode.red){
+
+            if(newNode.data < stack.peek.data){
+                stack.peek.left = newNode;
+            } else {
+                stack.peek.right = newNode;
+            }
+            newNode = fixInsert(stack.pop);
+        }
+
+        if(stack.empty){
+            //writeln("unwound to root");
+            root = newNode;
+            root.red = false;
+        }
+        return true;
+
+        // original recursive implementation
+        /*
 
         Node* insert(Node* n){
             if(n is null){
@@ -48,15 +95,180 @@ class RBTree(T) {
         root = insert(root);
         root.red = false; //make the root black.  This can't break anything
         return _size != oldSize;
+        */
     }
 
 
     //if returns the node, as well as saying if the BH of this subtree
     //shrunk (deleting can decrease it by 1)
-    private alias RemoveResult = Tuple!(Node*, "newRoot", bool, "bhChanged");
+    private struct RemoveResult {
+        Node* newRoot;
+        bool bhChanged;
+    }
 
     bool removeKey(T val){
+        /*writeln("\ntree before removing ", val);
+        printInOrder();
+        scope(exit){
+            writeln("\ntree after removing ", val);
+            printInOrder();
+            }*/
+
+        NS stack;
+        auto n = root;
+
+        while(true){
+            if(n == null){
+                return false; //not found, easy
+            }
+            stack.push(n);
+            if(n.data == val){
+                break;
+            } else  if(val < n.data){
+                n = n.left;
+            } else {
+                n = n.right;
+            }
+        }
+
+        //node containing data is at the top of the stack
+        n = stack.pop;
+        _size--;
+
+
+
+        bool isLeft = !stack.empty && n == stack.peek.left;
+
+        void attachToParent(bool isLeft, Node* n){
+            if(stack.empty){
+                root = n;
+            } else if(isLeft){
+                stack.peek.left = n;
+            } else {
+                stack.peek.right = n;
+            }
+        }
+
+        if(n.left == null){
+
+            //no left child, stick the right child here, which could be null
+            attachToParent(isLeft, n.right);
+
+            if(n.red){
+                //removed a red node, can't have broken any rules
+                return true;
+            }
+            if(n.right !is null && n.right.red){
+                //removed a black node, but can recolor it's only child
+                n.right.red = false;
+                return true;
+            }
+            // else, we just decreased the blackHeight of the subtree rooted at n
+        } else if(n.right == null){
+
+            //n only has a left child
+            attachToParent(isLeft, n.left);
+
+            if(n.red){
+                return true;
+            }
+            if(n.left.red){
+                n.left.red = false;
+                return true;
+            }
+        } else {
+            //n has 2 children, find predecessor
+            stack.push(n);
+            auto thiefNode = n;
+            n = n.left;
+            isLeft = true;
+            while(n !is null){
+                stack.push(n);
+                n = n.right;
+                if(n !is null){ //ugly...
+                    isLeft = false;
+                }
+            }
+            //steal the data
+            auto pred = stack.pop;
+
+            thiefNode.data = pred.data;
+
+            //now delete the predecessor, which might have a left child
+            //but can't have a right child
+            if(isLeft){
+                assert(stack.peek.left == pred);
+                stack.peek.left = pred.left;
+            } else {
+                assert(stack.peek.right == pred);
+                stack.peek.right = pred.left;
+            }
+
+            if(pred.red){
+                return true;
+            } else if(pred.left !is null && pred.left.red){
+                // pred was black.  If it's stolen side was red,
+                // make it black to make the fix easy.
+                pred.left.red = false;
+                return true;
+            }
+        }
+        //at this point the stack stores the path from the root
+        //to the removed node, and we need to fix a RB property at this point
+        if(stack.empty){
+            //tree must be empty
+            root = null;
+            return true;
+        }
+
+        //black height must have changed if we got here.
+        n = stack.pop; //fix it 1 level up
+
+        //fix it
+        auto fixedN = isLeft ?
+            fixDelete!true(RemoveResult(n, true)) :
+            fixDelete!false(RemoveResult(n, true));
+
+        isLeft = !stack.empty && stack.peek.left == n;
+        n = fixedN.newRoot;
+        bool bhChanged = fixedN.bhChanged;
+
+        if(!stack.empty){
+            if(isLeft){ stack.peek.left = n; }
+            else { stack.peek.right = n; }
+        }
+
+
+        while(!stack.empty && (bhChanged || n.red)){
+            if(isLeft){
+                stack.peek.left = n;
+            } else {
+                stack.peek.right = n;
+            }
+
+            n = stack.pop;
+
+
+            auto result = isLeft ?
+                fixDelete!true(RemoveResult(n, bhChanged)):
+                fixDelete!false(RemoveResult(n, bhChanged));
+
+            bhChanged = result.bhChanged;
+            isLeft = !stack.empty && stack.peek.left == n;
+            n = result.newRoot;
+        }
+
+        if(stack.empty){
+            root = n;
+            root.red = false;
+        }
+
+        return true;
+
+
+
         //remove val from subtree rooted at n and return its new root
+        /+ old recursive implementation
         RemoveResult remove(Node* n, T val){
             /*if(n !is null){
                 write("recursive remove ", val, " from subtree rooted at ");
@@ -115,6 +327,7 @@ class RBTree(T) {
             root.red = false;  //make the root black
         }
         return _size != oldSize;
+    +/
     }
 
 
@@ -125,9 +338,10 @@ class RBTree(T) {
     //the parent of n.newRoot needs to be changed to fix it
     private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
         /*writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
-                " bh changed? ", n.bhChanged, " left changed ", leftChanged);
+                 " bh changed? ", n.bhChanged, " left changed ", leftChanged);
         scope(exit){
-            writeln("finished fixDelete at ", n.newRoot.data);
+            writeln("finished fixDelete at ", n.newRoot.data, " tree: ");
+            printInOrder();
             }*/
         //if bh changed, the changedSide subtree must have a black root
         auto changedChild = leftChanged ? n.newRoot.left : n.newRoot.right;
@@ -241,8 +455,10 @@ class RBTree(T) {
         /*writeln("fixing insert at ", n.data, " tree: ");
         printInOrder(n);
         scope(exit){
-            writeln("finished fixing insert at ", n.data);
+            writeln("finished fixing insert at ", n.data, " tree: ");
+            printInOrder();
             }*/
+
         if(n.left !is null && n.left.red){
             auto l = n.left;
             if(l.left !is null && l.left.red){
@@ -301,7 +517,6 @@ class RBTree(T) {
                 newRoot.right.red = false; //grandchild was red, must be black now
                 return newRoot;
 
-
             } else if(r.left !is null && r.left.red){
                 //zag zig
                 auto newRoot = r.left;
@@ -316,11 +531,7 @@ class RBTree(T) {
                 n.red = false; //should already have been black
 
                 return newRoot;
-
-
-
             }
-
         }
 
         return n;
@@ -346,15 +557,12 @@ class RBTree(T) {
     //range implementation
 
     private struct Range{
-        import rbt.ssostack;
-        //"node stack"
-        alias NS = SSOStack!(const(Node)*);
         NS stack;
 
         @disable this();
 
-        this(const ref Range other){
-            stack = other.stack;
+        this(ref Range other){
+            stack = NS(cast(NS)other.stack);
         }
 
         this(Node* root){
@@ -385,7 +593,7 @@ class RBTree(T) {
             if(prev.right !is null){
                 //writeln("traverse right");
                 //trace down to the left
-                const(Node)* curr = prev.right;
+                auto curr = prev.right;
                 while(curr !is null){
                     stack.push(curr);
                     curr = curr.left;
@@ -410,7 +618,7 @@ class RBTree(T) {
 
 
 
-    private void rbCheck(){
+    public void rbCheck(){
         if(root is null){
             assert(size == 0);
             return;
@@ -443,8 +651,6 @@ class RBTree(T) {
 
     }
 
-
-
     private void printInOrder(Node* n){
         if(n is null) return;
         printInOrder(n.left);
@@ -455,7 +661,10 @@ class RBTree(T) {
     public void printInOrder(){
 
         import std.conv: to;
-
+        if(root is null){
+            writeln("empty tree");
+            return;
+        }
         writeln("tree root is: ", root.data);
         writeln("root.left: ", root.left ? to!string(root.left.data) : "null",
                 " root.right: ", root.right ? to!string(root.right.data) : "null");
@@ -470,7 +679,8 @@ unittest {
     {
         scope tree = new RBTree!int();
         foreach_reverse(i; 0..5){
-            //writeln("about to insert", i, "before: \n");
+            //writeln("about to insert ", i, " before: \n");
+            //tree.printInOrder();
             assert(tree.insert(i));
             tree.rbCheck();
             assert(tree.contains(i));
@@ -518,7 +728,7 @@ unittest {
         import std.parallelism: parallel;
 
         //got it to pass with limit = 11 in ~1 minute
-        const limit = 5;        //TODO BUMP UP TO 10!
+        const limit = 9;        //TODO BUMP UP TO 10!
         auto rnd = Random(42);
 
         //writeln("checking all permutations of iota(", limit,")");
@@ -533,15 +743,19 @@ unittest {
                 assert(tree.insert(x));
                 tree.rbCheck();
                 assert(tree.contains(x));
+                //tree.printInOrder;
             }
             //remove them in a random order
-            //tree.printInOrder;
             removeOrder.randomShuffle(rnd);
             //writeln("remove order: ", removeOrder);
+            ulong size = limit;
             foreach(x; removeOrder){
                 //writeln("about to remove ", x);
                 assert(tree.removeKey(x));
+                size--;
+                assert(tree.size == size);
                 tree.rbCheck();
+                //tree.printInOrder();
             }
             assert(tree.size == 0);
         }

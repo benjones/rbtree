@@ -107,7 +107,193 @@ class RBTree(T) {
     }
 
     bool removeKey(T val){
+        writeln("\ntree before removing ", val);
+        printInOrder();
+        scope(exit){
+            writeln("\ntree after removing ", val);
+            printInOrder();
+        }
+
+        NS stack;
+        auto n = root;
+
+        while(true){
+            if(n == null){
+                return false; //not found, easy
+            }
+            stack.push(n);
+            if(n.data == val){
+                break;
+            } else  if(val < n.data){
+                n = n.left;
+            } else {
+                n = n.right;
+            }
+        }
+
+        //node containing data is at the top of the stack
+        n = stack.pop;
+        _size--;
+
+
+        //TODO, fix this in the case where we delete the root
+        //But the tree is not empty
+        //if(stack.empty & root){
+        //    root = null;
+        //    return true;
+        //}
+        bool isLeft = !stack.empty && n == stack.peek.left;
+
+        void attachToParent(bool isLeft, Node* n){
+            if(stack.empty){
+                root = n;
+            } else if(isLeft){
+                stack.peek.left = n;
+            } else {
+                stack.peek.right = n;
+            }
+        }
+
+        if(n.left == null){
+
+            //no left child, stick the right child here, which could be null
+            attachToParent(isLeft, n.right);
+
+            /*
+            if(isLeft){
+                stack.peek.left = n.right;
+            } else {
+                stack.peek.right = n.right;
+            }*/
+
+            if(n.red){
+                //removed a red node, can't have broken any rules
+                return true;
+            }
+            if(n.right !is null && n.right.red){
+                //removed a black node, but can recolor it's only child
+                n.right.red = false;
+                return true;
+            }
+            // else, we just decreased the blackHeight of the subtree rooted at n
+        } else if(n.right == null){
+
+            //n only has a left child
+            attachToParent(isLeft, n.left);
+            /*
+            if(isLeft){
+                stack.peek.left = n.left;
+            } else {
+                stack.peek.right = n.left; //fixed bug, was n.right
+            }
+            */
+
+            if(n.red){
+                return true;
+            }
+            if(n.left.red){
+                n.left.red = false;
+                return true;
+            }
+        } else {
+            //n has 2 children, find predecessor
+            stack.push(n);
+            auto thiefNode = n;
+            n = n.left;
+            isLeft = true;
+            while(n !is null){
+                stack.push(n);
+                n = n.right;
+                if(n !is null){ //ugly...
+                    isLeft = false;
+                }
+            }
+            //steal the data
+            auto pred = stack.pop;
+            writeln("pred: ", pred.data);
+            writeln("thief node: ", thiefNode.data);
+            writeln("isLeft: ", isLeft);
+            thiefNode.data = pred.data;
+            writeln("stack after stealing data");
+            NS.writeAsString!(function(x) => to!string(x.data))(stack);
+            //now delete the predecessor, which might have a left child
+            //but can't have a right child
+            if(isLeft){
+                assert(stack.peek.left == pred);
+                stack.peek.left = pred.left;
+            } else {
+                assert(stack.peek.right == pred);
+                stack.peek.right = pred.left;
+            }
+            writeln("tree after stealing data");
+            printInOrder();
+
+            if(pred.red){
+                return true;
+            } else if(pred.left !is null && pred.left.red){
+                // pred was black.  If it's stolen side was red,
+                // make it black to make the fix easy.
+                pred.left.red = false;
+                return true;
+            }
+        }
+        //at this point the stack stores the path from the root
+        //to the removed node, and we need to fix a RB property at this point
+        if(stack.empty){
+            //tree must be empty
+            root = null;
+            return true;
+        }
+
+        //black height must have changed if we got here.
+        n = stack.pop; //fix it 1 level up
+
+        //fix it
+        auto fixedN = isLeft ?
+            fixDelete!true(RemoveResult(n, true)) :
+            fixDelete!false(RemoveResult(n, true));
+
+        isLeft = !stack.empty && stack.peek.left == n;
+        n = fixedN.newRoot;
+        bool bhChanged = fixedN.bhChanged;
+        writeln("n before stack unwind: ", n.data);
+        if(!stack.empty){
+            if(isLeft){ stack.peek.left = n; }
+            else { stack.peek.right = n; }
+        }
+
+
+        while(!stack.empty && (bhChanged || n.red)){
+            writeln("unwinding stack, n: ", n.data);
+            if(isLeft){
+                stack.peek.left = n;
+            } else {
+                stack.peek.right = n;
+            }
+
+            n = stack.pop;
+
+
+            auto result = isLeft ?
+                fixDelete!true(RemoveResult(n, bhChanged)):
+                fixDelete!false(RemoveResult(n, bhChanged));
+
+            bhChanged = result.bhChanged;
+            isLeft = !stack.empty && stack.peek.left == n;
+            n = result.newRoot;
+        }
+
+        if(stack.empty){
+            root = n;
+            root.red = false;
+        }
+
+        return true;
+
+
+
         //remove val from subtree rooted at n and return its new root
+        /+ old recursive implementation
         RemoveResult remove(Node* n, T val){
             /*if(n !is null){
                 write("recursive remove ", val, " from subtree rooted at ");
@@ -166,6 +352,7 @@ class RBTree(T) {
             root.red = false;  //make the root black
         }
         return _size != oldSize;
+    +/
     }
 
 
@@ -175,11 +362,12 @@ class RBTree(T) {
     //Note, even if we can detect a problem here, we might not fix it if
     //the parent of n.newRoot needs to be changed to fix it
     private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
-        /*writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
-                " bh changed? ", n.bhChanged, " left changed ", leftChanged);
+        writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
+                 " bh changed? ", n.bhChanged, " left changed ", leftChanged);
         scope(exit){
-            writeln("finished fixDelete at ", n.newRoot.data);
-            }*/
+            writeln("finished fixDelete at ", n.newRoot.data, " tree: ");
+            printInOrder();
+        }
         //if bh changed, the changedSide subtree must have a black root
         auto changedChild = leftChanged ? n.newRoot.left : n.newRoot.right;
         assert((n.bhChanged && (changedChild is null || !changedChild.red)) ||
@@ -289,12 +477,13 @@ class RBTree(T) {
 
      */
     private Node* fixInsert(Node* n){
-        /*writeln("fixing insert at ", n.data, " tree: ");
+        writeln("fixing insert at ", n.data, " tree: ");
         printInOrder(n);
         scope(exit){
-            writeln("finished fixing insert at ", n.data);
+            writeln("finished fixing insert at ", n.data, " tree: ");
+            printInOrder();
         }
-        */
+
         if(n.left !is null && n.left.red){
             auto l = n.left;
             if(l.left !is null && l.left.red){
@@ -573,22 +762,26 @@ unittest {
         auto removeOrder = iota(limit).array;
         foreach(perm; iota(limit).permutations){
 
-            //writeln("perm: ", perm);
+            writeln("perm: ", perm);
             scope tree = new RBTree!int();
             foreach(x; perm){
                 assert(tree.insert(x));
                 tree.rbCheck();
                 assert(tree.contains(x));
-                //tree.printInOrder;
+                tree.printInOrder;
             }
             //remove them in a random order
-            //tree.printInOrder;
+            tree.printInOrder;
             removeOrder.randomShuffle(rnd);
-            //writeln("remove order: ", removeOrder);
+            writeln("remove order: ", removeOrder);
+            ulong size = limit;
             foreach(x; removeOrder){
                 //writeln("about to remove ", x);
                 assert(tree.removeKey(x));
+                size--;
+                assert(tree.size == size);
                 tree.rbCheck();
+                //tree.printInOrder();
             }
             assert(tree.size == 0);
         }

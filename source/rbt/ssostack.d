@@ -4,6 +4,8 @@ import std.stdio;
 
 //for a RB tree, this is the height we can handle in a range
 //without heap allocating for the range/iterator
+//Create with SSOStack.make() to initialize the data slice
+//
 struct SSOStack(T, size_t capacity = 16) {
 
  private:
@@ -11,6 +13,17 @@ struct SSOStack(T, size_t capacity = 16) {
     T[] data; //interior slice/pointer potentially, danger zone!
 
  public:
+
+    @disable this();
+
+    private this(void* dummy){
+        data[] = backing[0..0];
+    }
+
+    static SSOStack make(){
+        return SSOStack(null);
+    }
+
 
     this(ref SSOStack other){
         if(data.length > capacity){
@@ -25,9 +38,10 @@ struct SSOStack(T, size_t capacity = 16) {
 
     void push(T t){
         //writeln("push: size: ", size);
-        if(!data){
+        //unnecessary now that we have the `make` function
+        /*if(!data){
             data = backing[0 .. 0];
-        }
+            }*/
         if(size < capacity){
             data = backing[0 .. data.length + 1];
             data[$-1] = t;

@@ -40,7 +40,7 @@ class RBTree(T) {
 
     bool insert(T val){
         //writeln("\ninsert ", val);
-        NS stack;
+        auto stack = NS.make();
 
         Node* n = root;
         while(n != null){
@@ -114,7 +114,7 @@ class RBTree(T) {
             printInOrder();
             }*/
 
-        NS stack;
+        auto stack = NS.make();
         auto n = root;
 
         while(true){
@@ -557,7 +557,7 @@ class RBTree(T) {
     //range implementation
 
     private struct Range{
-        NS stack;
+        auto stack = NS.make();
 
         @disable this();
 

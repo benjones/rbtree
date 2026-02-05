@@ -82,7 +82,7 @@ struct SSOStack(T, size_t capacity = 16) {
 
 unittest {
 
-    SSOStack!(int, 4) stack;
+    auto stack =  SSOStack!(int, 4).make();
     foreach(i; 0..10){
         stack.push(i);
         assert(stack.peek == i);
@@ -99,7 +99,7 @@ unittest {
 
 unittest {
     alias S4 = SSOStack!(int, 4);
-    S4 s;
+    auto s = S4.make();
     s.push(1);
     S4 s2 = s;
     assert(s.size == 1);

@@ -40,3 +40,15 @@ Benchmark 1: benchmark/rbtree_benchmark
   Time (mean ± σ):     225.4 ms ±   2.7 ms    [User: 218.1 ms, System: 6.0 ms]
   Range (min … max):   221.8 ms … 231.7 ms    13 runs
   ```
+  
+  As of commit  e3d76e1e0c09962ac90519d3930d305c397e10ec
+  
+  ```
+  dub build --build=release-debug :benchmark && hyperfine --warmup 3  "benchmark/rbtree_benchmark"
+    Starting Performing "release-debug" build using ldc2 for aarch64, arm_hardfloat.
+    Building rbtree:benchmark ~main: building configuration [application]
+     Linking rbtree_benchmark
+Benchmark 1: benchmark/rbtree_benchmark
+  Time (mean ± σ):     204.7 ms ±   3.0 ms    [User: 198.0 ms, System: 5.8 ms]
+  Range (min … max):   200.8 ms … 209.4 ms    14 runs
+  ```

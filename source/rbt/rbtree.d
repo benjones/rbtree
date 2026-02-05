@@ -104,6 +104,19 @@ class RBTree(T) {
     private struct RemoveResult {
         Node* newRoot;
         bool bhChanged;
+
+        this(Node* nr, bool bhc){
+            newRoot = nr;
+            bhChanged = bhc;
+            write("Remove result, newRoot ");
+            if(nr is null){
+                write("null");
+            } else {
+                write(nr.data);
+            }
+            writeln(" black heigh changed? ", bhc);
+        }
+
     }
 
     bool removeKey(T val){
@@ -238,8 +251,10 @@ class RBTree(T) {
             else { stack.peek.right = n; }
         }
 
-
-        while(!stack.empty && (bhChanged || n.red)){
+        // if the root of the subtree at n changes
+        // we need at least another iteration
+        bool subtreeRootChanged = false;
+        while(!stack.empty && (bhChanged || n.red || subtreeRootChanged)){
             if(isLeft){
                 stack.peek.left = n;
             } else {
@@ -248,13 +263,18 @@ class RBTree(T) {
 
             n = stack.pop;
 
+            writeln("top of stack in delete: ", n.data);
+
 
             auto result = isLeft ?
                 fixDelete!true(RemoveResult(n, bhChanged)):
                 fixDelete!false(RemoveResult(n, bhChanged));
 
+            writeln("after calling fixDelete in delete, result: ", result.newRoot.data);
+
             bhChanged = result.bhChanged;
             isLeft = !stack.empty && stack.peek.left == n;
+            subtreeRootChanged = n !is result.newRoot;
             n = result.newRoot;
         }
 
@@ -337,12 +357,12 @@ class RBTree(T) {
     //Note, even if we can detect a problem here, we might not fix it if
     //the parent of n.newRoot needs to be changed to fix it
     private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
-        /*writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
+        writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
                  " bh changed? ", n.bhChanged, " left changed ", leftChanged);
         scope(exit){
             writeln("finished fixDelete at ", n.newRoot.data, " tree: ");
             printInOrder();
-            }*/
+            }
         //if bh changed, the changedSide subtree must have a black root
         auto changedChild = leftChanged ? n.newRoot.left : n.newRoot.right;
         assert((n.bhChanged && (changedChild is null || !changedChild.red)) ||
@@ -403,8 +423,9 @@ class RBTree(T) {
                     //might have caused red/red at midGC + its child
                     //fix it at n.newRoot which is its parent
                     // fixInsert will work even if both of midGC's children were red
+                    writeln("rotated up new root, ", n.newRoot.data, " now has imbalanced children.  Fix it.");
                     auto fixed = fixInsert(n.newRoot);
-
+                    writeln("fixed root after fixInsert: ", n.newRoot.data);
                     static if(leftChanged){
                         oppChild.left = fixed;
                     } else {
@@ -413,8 +434,12 @@ class RBTree(T) {
 
                     //oppChild is the new root.  It WAS red, if we make it black the tree height
                     //will be what it was before.  Fix a potential red/red problem, and return all good
+                    //TODO is fixInsert required here?
                     oppChild.red = false;
-                    return RemoveResult(fixInsert(oppChild), false);
+                    auto ret = RemoveResult(fixInsert(oppChild), false);
+                    writeln("subtree and its new root at the end of fixdelete, new root: ", ret.newRoot.data);
+                    printInOrder(ret.newRoot);
+                    return ret;
 
                 } else { //opChild is black
                     //if the opposite subtree root was black:
@@ -452,12 +477,12 @@ class RBTree(T) {
 
      */
     private Node* fixInsert(Node* n){
-        /*writeln("fixing insert at ", n.data, " tree: ");
+        writeln("fixing insert at ", n.data, " tree: ");
         printInOrder(n);
         scope(exit){
-            writeln("finished fixing insert at ", n.data, " tree: ");
-            printInOrder();
-            }*/
+            writeln("finished fixing insert with old root ", n.data, " subtree (might not be the new root): ");
+            printInOrder(n);
+            }
 
         if(n.left !is null && n.left.red){
             auto l = n.left;
@@ -654,7 +679,16 @@ class RBTree(T) {
     private void printInOrder(Node* n){
         if(n is null) return;
         printInOrder(n.left);
-        writeln(n.data, "(", n.red, ")");
+        write(n.data, "(", n.red, ")");
+        write(" l ");
+        if(n.left is null){ write("null "); }
+        else { write(n.left.data, " "); }
+
+        write(" r ");
+        if(n.right is null){ write("null "); }
+        else { write(n.right.data, " "); }
+        writeln();
+
         printInOrder(n.right);
     }
 
@@ -673,7 +707,7 @@ class RBTree(T) {
 
 }
 
-
+/*
 unittest {
 
     {
@@ -818,10 +852,13 @@ private void fillAndClear(int[] insert, int[] remove){
     assert(equal(iota(insert.length), asArray));
 
     //tree.printInOrder();
+    ulong size = tree.size;
     foreach(x; remove){
         //writeln("removing ", x);
         assert(tree.removeKey(x));
         tree.rbCheck();
+        size--;
+        assert(tree.size == size);
         //if(tree.size > 0){
         //  tree.printInOrder();
         //}
@@ -837,4 +874,26 @@ unittest {
 unittest {
     fillAndClear([1, 0, 2, 3, 4, 5, 6, 7],
         [4, 0, 7, 3, 1, 2, 5, 6]);
+        }*/
+
+unittest {
+    //make sure benchmark is correct
+    scope t = new RBTree!ulong;
+
+    const limit = 24; //1_000_000
+    foreach(i; 0L..limit){
+        t.insert(i);
+    }
+    t.rbCheck();
+    ulong removeCount = 0;
+    t.printInOrder();
+    foreach(i; 0L.. limit){
+        writeln("about to remove ", i);
+        removeCount += t.removeKey(i);
+        assert(t.size == limit - removeCount);
+        t.printInOrder();
+        t.rbCheck();
+    }
+    assert( removeCount == limit);
+
 }

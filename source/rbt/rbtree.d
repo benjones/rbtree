@@ -105,6 +105,8 @@ class RBTree(T) {
         Node* newRoot;
         bool bhChanged;
 
+        //log construction for debugging
+        /*
         this(Node* nr, bool bhc){
             newRoot = nr;
             bhChanged = bhc;
@@ -115,7 +117,7 @@ class RBTree(T) {
                 write(nr.data);
             }
             writeln(" black heigh changed? ", bhc);
-        }
+            }*/
 
     }
 
@@ -263,14 +265,14 @@ class RBTree(T) {
 
             n = stack.pop;
 
-            writeln("top of stack in delete: ", n.data);
+            //writeln("top of stack in delete: ", n.data);
 
 
             auto result = isLeft ?
                 fixDelete!true(RemoveResult(n, bhChanged)):
                 fixDelete!false(RemoveResult(n, bhChanged));
 
-            writeln("after calling fixDelete in delete, result: ", result.newRoot.data);
+            //writeln("after calling fixDelete in delete, result: ", result.newRoot.data);
 
             bhChanged = result.bhChanged;
             isLeft = !stack.empty && stack.peek.left == n;
@@ -357,12 +359,13 @@ class RBTree(T) {
     //Note, even if we can detect a problem here, we might not fix it if
     //the parent of n.newRoot needs to be changed to fix it
     private RemoveResult fixDelete(bool leftChanged)(RemoveResult n){
+        /*
         writeln("fixDelete of ", n.newRoot.data, " red ? ", n.newRoot.red,
                  " bh changed? ", n.bhChanged, " left changed ", leftChanged);
         scope(exit){
             writeln("finished fixDelete at ", n.newRoot.data, " tree: ");
             printInOrder();
-            }
+            }*/
         //if bh changed, the changedSide subtree must have a black root
         auto changedChild = leftChanged ? n.newRoot.left : n.newRoot.right;
         assert((n.bhChanged && (changedChild is null || !changedChild.red)) ||
@@ -423,9 +426,9 @@ class RBTree(T) {
                     //might have caused red/red at midGC + its child
                     //fix it at n.newRoot which is its parent
                     // fixInsert will work even if both of midGC's children were red
-                    writeln("rotated up new root, ", n.newRoot.data, " now has imbalanced children.  Fix it.");
+                    //writeln("rotated up new root, ", n.newRoot.data, " now has imbalanced children.  Fix it.");
                     auto fixed = fixInsert(n.newRoot);
-                    writeln("fixed root after fixInsert: ", n.newRoot.data);
+                    //writeln("fixed root after fixInsert: ", n.newRoot.data);
                     static if(leftChanged){
                         oppChild.left = fixed;
                     } else {
@@ -437,8 +440,6 @@ class RBTree(T) {
                     //TODO is fixInsert required here?
                     oppChild.red = false;
                     auto ret = RemoveResult(fixInsert(oppChild), false);
-                    writeln("subtree and its new root at the end of fixdelete, new root: ", ret.newRoot.data);
-                    printInOrder(ret.newRoot);
                     return ret;
 
                 } else { //opChild is black
@@ -477,13 +478,14 @@ class RBTree(T) {
 
      */
     private Node* fixInsert(Node* n){
+        /*
         writeln("fixing insert at ", n.data, " tree: ");
         printInOrder(n);
         scope(exit){
             writeln("finished fixing insert with old root ", n.data, " subtree (might not be the new root): ");
             printInOrder(n);
             }
-
+        */
         if(n.left !is null && n.left.red){
             auto l = n.left;
             if(l.left !is null && l.left.red){
@@ -707,7 +709,7 @@ class RBTree(T) {
 
 }
 
-/*
+
 unittest {
 
     {
@@ -874,7 +876,7 @@ unittest {
 unittest {
     fillAndClear([1, 0, 2, 3, 4, 5, 6, 7],
         [4, 0, 7, 3, 1, 2, 5, 6]);
-        }*/
+}
 
 unittest {
     //make sure benchmark is correct
@@ -886,12 +888,12 @@ unittest {
     }
     t.rbCheck();
     ulong removeCount = 0;
-    t.printInOrder();
+    //t.printInOrder();
     foreach(i; 0L.. limit){
-        writeln("about to remove ", i);
+        //writeln("about to remove ", i);
         removeCount += t.removeKey(i);
         assert(t.size == limit - removeCount);
-        t.printInOrder();
+        //t.printInOrder();
         t.rbCheck();
     }
     assert( removeCount == limit);
